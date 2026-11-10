@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartMoney - จัดการการเงินอย่างมืออาชีพ</title>
+  
+  <!-- ดึงไลบรารีที่จำเป็น -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- ================= CSS ================= -->
+  <style>
+    body { font-family: 'Prompt', sans-serif; }
+
+    /* แอนิเมชันเปลี่ยนหน้า (SPA transition) */
+    .fade-in {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ลบลูกศรใน input number */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    /* ปุ่มลบในลิสต์ */
+    .exp-item .delete-btn {
+      opacity: 0;
+      transition: all 0.2s;
+    }
+    .exp-item:hover .delete-btn { opacity: 1; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-prompt">
+
+  <!-- Navbar -->
+  <nav class="bg-white shadow-sm sticky top-0 z-50 border-b border-slate-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <!-- โลโก้ -->
+        <div class="flex items-center cursor-pointer hover:opacity-80 transition" onclick="app.navigate('')">
+          <div class="bg-blue-600 text-white p-1.5 rounded-lg mr-2">
+            <i data-lucide="wallet" class="h-5 w-5"></i>
+          </div>
+          <span class="font-bold text-xl tracking-tight text-slate-900">SmartMoney</span>
+        </div>
+        
+        <!-- เมนูก่อนล็อกอิน -->
+        <div id="nav-guest" class="flex space-x-3 items-center">
+          <button onclick="app.navigate('login')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 transition">เข้าสู่ระบบ</button>
+          <button onclick="app.navigate('register')" class="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition">สมัครสมาชิก</button>
+        </div>
+
+        <!-- เมนูหลังล็อกอิน -->
+        <div id="nav-user" class="hidden flex items-center space-x-1 sm:space-x-3">
+          <span id="user-greeting" class="text-sm font-medium text-slate-500 mr-2 hidden md:block"></span>
+          
+          <button onclick="app.navigate('dashboard')" class="px-3 py-2 rounded-lg text-sm font-medium flex items-center text-slate-600 hover:bg-slate-100 transition">
+            <i data-lucide="layout-dashboard" class="h-4 w-4 sm:mr-2"></i><span class="hidden sm:inline">จัดการเงิน</span>
+          </button>
+          <button onclick="app.navigate('summary')" class="px-3 py-2 rounded-lg text-sm font-medium flex items-center text-slate-600 hover:bg-slate-100 transition">
+            <i data-lucide="pie-chart" class="h-4 w-4 sm:mr-2"></i><span class="hidden sm:inline">สรุปรายการ</span>
+          </button>
+          
+          <div class="w-px h-5 bg-slate-200 mx-1 hidden sm:block"></div>
+          
+          <button onclick="app.logout()" class="p-2 sm:px-3 sm:py-2 rounded-lg text-sm font-medium text-rose-500 hover:bg-rose-50 hover:text-rose-600 flex items-center transition" title="ออกจากระบบ">
+            <i data-lucide="log-out" class="h-4 w-4 sm:mr-2"></i><span class="hidden sm:inline">ออกจากระบบ</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- พื้นที่แสดงเนื้อหาหลัก -->
+  <main id="app-content" class="flex-grow w-full"></main>
+
+  <!-- ================= Templates ================= -->
+
+  <!-- หน้า Home -->
+  <template id="tpl-home">
+    <div class="fade-in">
+      <section class="bg-gradient-to-b from-blue-50 to-slate-50 py-20 px-4 text-center">
+        <div class="max-w-3xl mx-auto">
+          <div class="inline-block bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-medium mb-6">ผู้ช่วยการเงินส่วนตัวของคุณ</div>
+          <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 leading-tight tracking-tight">
+            จัดการเงินง่ายๆ <br>เพื่อชีวิตที่ <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">มั่งคั่ง</span> กว่าเดิม
+          </h1>
+          <p class="text-lg md:text-xl text-slate-600 mb-10 max-w-2xl mx-auto">
+            SmartMoney ช่วยให้คุณวางแผนงบประมาณ ติดตามรายจ่าย และวิเคราะห์พฤติกรรมทางการเงินของคุณได้อย่างมืออาชีพ
+          </p>
+          <button onclick="app.navigate('login')" class="px-8 py-3.5 bg-slate-900 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex mx-auto items-center">
+            เริ่มต้นใช้งานฟรี <i data-lucide="arrow-right" class="ml-2 h-5 w-5"></i>
+          </button>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- หน้าเข้าสู่ระบบ (Login) -->
+  <template id="tpl-login">
+    <div class="fade-in min-h-[80vh] flex items-center justify-center px-4 py-12">
+      <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 mb-4">
+            <i data-lucide="log-in" class="h-8 w-8"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-slate-900">เข้าสู่ระบบ</h2>
+        </div>
+        <form onsubmit="app.login(event)" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">อีเมล</label>
+            <input type="email" id="login-email" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition" placeholder="email@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">รหัสผ่าน</label>
+            <input type="password" id="login-password" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition" placeholder="••••••••">
+          </div>
+          <button type="submit" class="w-full py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5">เข้าสู่ระบบ</button>
+          <p class="text-center text-sm text-slate-500 mt-4">ยังไม่มีบัญชี? <a href="#" onclick="app.navigate('register')" class="text-blue-600 hover:underline font-medium">สมัครสมาชิก</a></p>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <!-- หน้าสมัครสมาชิก (Register) -->
+  <template id="tpl-register">
+    <div class="fade-in min-h-[80vh] flex items-center justify-center px-4 py-12">
+      <div class="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 mb-4">
+            <i data-lucide="user-plus" class="h-8 w-8"></i>
+          </div>
+          <h2 class="text-2xl font-bold text-slate-900">สมัครสมาชิก</h2>
+        </div>
+        <form onsubmit="app.register(event)" class="space-y-5">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">ชื่อผู้ใช้งาน</label>
+            <input type="text" id="reg-username" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition" placeholder="เช่น JohnDoe">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">อีเมล</label>
+            <input type="email" id="reg-email" required class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition" placeholder="email@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">รหัสผ่าน</label>
+            <input type="password" id="reg-password" required minlength="6" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition" placeholder="••••••••">
+          </div>
+          <button type="submit" class="w-full py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-600/30 transition-all hover:-translate-y-0.5">ยืนยันการสมัคร</button>
+          <p class="text-center text-sm text-slate-500 mt-4">มีบัญชีอยู่แล้ว? <a href="#" onclick="app.navigate('login')" class="text-blue-600 hover:underline font-medium">เข้าสู่ระบบ</a></p>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <!-- หน้าจัดการเงิน (Dashboard) -->
+  <template id="tpl-dashboard">
+    <div class="max-w-7xl mx-auto px-4 py-8 fade-in grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+      
+      <!-- คอลัมน์ซ้าย (ตั้งค่าและบันทึก) -->
+      <div class="lg:col-span-7 space-y-6">
+        
+        <!-- 1. ตั้งค่างบประมาณ -->
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+          <h2 class="text-lg font-bold mb-6 flex items-center text-slate-800">
+            <div class="p-1.5 bg-blue-50 text-blue-600 rounded-lg mr-3"><i data-lucide="settings" class="h-5 w-5"></i></div> 
+            ตั้งค่างบประมาณ
+          </h2>
+          <div class="space-y-5">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">ยอดเงินรวม (บาท)</label>
+              <input type="number" id="input-budget" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition text-slate-900" placeholder="ระบุยอดเงินที่ต้องการบริหาร">
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">สูตรการเงิน</label>
+              <div class="grid grid-cols-3 gap-3">
+                <button onclick="app.setFormula('50/30/20')" id="btn-f-503020" class="f-btn py-2.5 rounded-xl border text-sm font-medium">50/30/20</button>
+                <button onclick="app.setFormula('80/20')" id="btn-f-8020" class="f-btn py-2.5 rounded-xl border text-sm font-medium">80/20</button>
+                <button onclick="app.setFormula('custom')" id="btn-f-custom" class="f-btn py-2.5 rounded-xl border text-sm font-medium">กำหนดเอง</button>
+              </div>
+            </div>
+
+            <!-- กล่องกำหนดสูตรเอง -->
+            <div id="custom-formula-box" class="hidden bg-slate-50 p-5 rounded-2xl border border-slate-100">
+              <div class="flex justify-between items-center mb-3">
+                <span class="text-sm font-medium text-slate-700">กำหนดสัดส่วน (%)</span>
+                <span id="custom-sum-text" class="text-sm font-bold text-slate-500">รวม: 0%</span>
+              </div>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs mb-1.5 text-slate-500 text-center">จำเป็น</label>
+                  <input type="number" id="c-needs" class="w-full px-2 py-2 border border-slate-200 rounded-lg text-sm text-center focus:border-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs mb-1.5 text-slate-500 text-center">ต้องการ</label>
+                  <input type="number" id="c-wants" class="w-full px-2 py-2 border border-slate-200 rounded-lg text-sm text-center focus:border-blue-500 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs mb-1.5 text-slate-500 text-center">ออม</label>
+                  <input type="number" id="c-savings" class="w-full px-2 py-2 border border-slate-200 rounded-lg text-sm text-center focus:border-blue-500 outline-none">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. บันทึกค่าใช้จ่าย -->
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+          <h2 class="text-lg font-bold mb-6 flex items-center text-slate-800">
+            <div class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg mr-3"><i data-lucide="plus" class="h-5 w-5"></i></div> 
+            บันทึกค่าใช้จ่าย
+          </h2>
+          <form onsubmit="app.addExpense(event)" class="space-y-5">
+            <div>
+              <label class="block text-sm font-medium mb-1.5 text-slate-700">หมวดหมู่</label>
+              <div class="relative">
+                <select id="exp-category" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 appearance-none bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none">
+                  <option value="อาหาร">🍔 อาหารและเครื่องดื่ม</option>
+                  <option value="เดินทาง">🚗 การเดินทาง</option>
+                  <option value="ที่พัก/บิล">🏠 ที่พัก & บิลสาธารณูปโภค</option>
+                  <option value="ช้อปปิ้ง">🛍️ ช้อปปิ้ง</option>
+                  <option value="บันเทิง">🎬 ความบันเทิง</option>
+                  <option value="อื่นๆ">📦 อื่นๆ</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                  <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1.5 text-slate-700">ชื่อรายการ</label>
+                <input type="text" id="exp-name" required class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none" placeholder="เช่น ค่ากาแฟ">
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1.5 text-slate-700">จำนวนเงิน (บาท)</label>
+                <input type="number" id="exp-amount" required min="1" class="w-full px-4 py-3.5 rounded-xl border border-slate-200 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none" placeholder="0">
+              </div>
+            </div>
+            <button type="submit" class="w-full py-4 bg-[#10b981] text-white font-bold rounded-xl hover:bg-emerald-600 shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5">
+              บันทึกรายจ่าย
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- คอลัมน์ขวา (สรุปผลเรียลไทม์) -->
+      <div class="lg:col-span-5 space-y-6">
+        
+        <!-- Dashboard Card สีเข้ม -->
+        <div class="bg-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl shadow-slate-900/20 relative overflow-hidden">
+          <!-- ตกแต่งฉากหลัง -->
+          <div class="absolute -right-20 -top-20 w-64 h-64 bg-blue-500 rounded-full mix-blend-screen blur-[80px] opacity-30"></div>
+          
+          <div class="relative z-10">
+            <p class="text-slate-400 text-sm font-medium mb-1">งบประมาณที่ตั้งไว้</p>
+            <div class="text-4xl md:text-5xl font-extrabold mb-8 tracking-tight"><span id="dash-budget">0</span> <span class="text-xl text-slate-500 font-normal">THB</span></div>
+            
+            <div class="bg-slate-800/80 backdrop-blur-sm rounded-2xl p-5 mb-8 border border-slate-700/50">
+              <div class="flex justify-between items-center mb-3">
+                <span class="text-sm text-slate-400 font-medium">ใช้ไปแล้ว</span>
+                <span id="dash-expense" class="font-bold text-rose-400">0 ฿</span>
+              </div>
+              <div class="flex justify-between items-center pt-3 border-t border-slate-700">
+                <span class="text-sm text-slate-400 font-medium">คงเหลือ</span>
+                <span id="dash-remain" class="font-bold text-emerald-400 text-xl">0 ฿</span>
+              </div>
+            </div>
+
+            <!-- แถบสัดส่วนเงิน -->
+            <div id="dash-breakdown" class="space-y-4 mb-8"></div>
+
+            <button onclick="app.saveSessionToHistory()" class="w-full py-4 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center group shadow-md">
+              <i data-lucide="save" class="w-5 h-5 mr-2 text-slate-700 group-hover:text-blue-600 transition"></i> บันทึกข้อมูลเข้าระบบ
+            </button>
+          </div>
+        </div>
+
+        <!-- รายการที่พึ่งกรอก -->
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <h3 class="text-sm font-bold text-slate-800">รายการใช้จ่ายของคุณ</h3>
+            <span class="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-1 rounded-full"><span id="exp-count">0</span> รายการ</span>
+          </div>
+          <div id="exp-list" class="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- หน้าสรุป (Summary) -->
+  <template id="tpl-summary">
+    <div class="max-w-7xl mx-auto px-4 py-8 fade-in">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+        <h1 class="text-2xl font-bold flex items-center text-slate-900">
+          <div class="p-1.5 bg-blue-50 text-blue-600 rounded-lg mr-3"><i data-lucide="bar-chart-2" class="h-6 w-6"></i></div>
+          สรุปและรายงานผล
+        </h1>
+        <button onclick="app.clearHistory()" class="text-sm text-rose-500 hover:text-rose-700 font-medium flex items-center bg-rose-50 px-3 py-1.5 rounded-lg transition">
+          <i data-lucide="trash-2" class="h-4 w-4 mr-1.5"></i> ล้างประวัติทั้งหมด
+        </button>
+      </div>
+
+      <!-- กราฟ -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+          <h2 class="text-base font-bold text-slate-800 mb-6">สัดส่วนค่าใช้จ่ายทั้งหมด</h2>
+          <div class="h-[250px]"><canvas id="chart-pie"></canvas></div>
+        </div>
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-100">
+          <h2 class="text-base font-bold text-slate-800 mb-6">แนวโน้มการใช้งบประมาณ</h2>
+          <div class="h-[250px]"><canvas id="chart-bar"></canvas></div>
+        </div>
+      </div>
+
+      <!-- ตารางประวัติ -->
+      <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+          <h2 class="font-bold text-slate-800">ประวัติที่บันทึกไว้</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="bg-white border-b border-slate-100 text-slate-500">
+              <tr>
+                <th class="px-6 py-4 font-semibold">วันเวลาที่บันทึก</th>
+                <th class="px-6 py-4 font-semibold">งบประมาณ</th>
+                <th class="px-6 py-4 font-semibold">ยอดใช้จ่าย</th>
+                <th class="px-6 py-4 font-semibold">คงเหลือ</th>
+                <th class="px-6 py-4 font-semibold">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody id="history-table" class="divide-y divide-slate-50"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- ================= JavaScript ================= -->
+  <script type="module">
+    // 1. นำเข้า Firebase Functions
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getAuth, 
+      createUserWithEmailAndPassword, 
+      signInWithEmailAndPassword, 
+      signOut, 
+      onAuthStateChanged,
+      updateProfile
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    // 2. ตั้งค่า Config ของ Firebase (แก้ไขค่าด้านล่างให้ตรงกับโปรเจกต์ของคุณ)
+    const firebaseConfig = {
+  apiKey: "AIzaSyCIdK5gblMx4BF8iQ7jzrHfA7-exKXlPtU",
+  authDomain: "yxng-j.firebaseapp.com",
+  projectId: "yxng-j",
+  storageBucket: "yxng-j.firebasestorage.app",
+  messagingSenderId: "647698141537",
+  appId: "1:647698141537:web:09dea871dc3cb4c4293520",
+  measurementId: "G-QVJV3VKX25"
+};
+
+    // 3. เริ่มต้น Firebase
+    const firebaseApp = initializeApp(firebaseConfig);
+    const auth = getAuth(firebaseApp);
+
+    const app = {
+      state: {
+        user: null,
+        budget: 0,
+        formulaType: '50/30/20',
+        customFormula: { needs: 50, wants: 30, savings: 20 },
+        expenses: [],
+        history: []
+      },
+      charts: { pie: null, bar: null },
+
+      init() {
+        this.loadData();
+        
+        // ตรวจสอบสถานะล็อกอินอัตโนมัติจาก Firebase
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            this.state.user = user.displayName || user.email; 
+            this.navigate('dashboard');
+          } else {
+            this.state.user = null;
+            this.navigate('home');
+          }
+        });
+      },
+
+      loadData() {
+        const saved = localStorage.getItem('smartmoney_data_v3');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            this.state.budget = parsed.budget || 0;
+            this.state.formulaType = parsed.formulaType || '50/30/20';
+            this.state.customFormula = parsed.customFormula || { needs: 50, wants: 30, savings: 20 };
+            this.state.expenses = parsed.expenses || [];
+            this.state.history = parsed.history || [];
+        }
+      },
+
+      saveData() {
+        // ยังคงบันทึกข้อมูลการเงินไว้ใน LocalStorage เพื่อให้สามารถใช้งานออฟไลน์หรือปรับโครงสร้างง่ายๆ ได้
+        localStorage.setItem('smartmoney_data_v3', JSON.stringify({
+            budget: this.state.budget,
+            formulaType: this.state.formulaType,
+            customFormula: this.state.customFormula,
+            expenses: this.state.expenses,
+            history: this.state.history
+        }));
+      },
+
+      navigate(view) {
+        if ((view === 'dashboard' || view === 'summary') && !this.state.user) {
+          view = 'login';
+        }
+
+        document.getElementById('nav-guest').classList.toggle('hidden', !!this.state.user);
+        document.getElementById('nav-user').classList.toggle('hidden', !this.state.user);
+        
+        if (this.state.user) {
+          const greeting = document.getElementById('user-greeting');
+          if (greeting) greeting.innerText = `สวัสดี, ${this.state.user}`;
+        }
+
+        const contentBox = document.getElementById('app-content');
+        const template = document.getElementById(`tpl-${view}`);
+        
+        if(template) {
+          contentBox.innerHTML = template.innerHTML;
+        }
+        
+        lucide.createIcons();
+
+        if (view === 'dashboard') this.initDashboard();
+        if (view === 'summary') this.initSummary();
+        window.scrollTo(0,0);
+      },
+
+      async register(e) {
+        e.preventDefault();
+        const username = document.getElementById('reg-username').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value;
+
+        try {
+          // สร้างบัญชีผู้ใช้ใน Firebase
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          
+          // อัปเดต Profile ให้จำชื่อผู้ใช้
+          await updateProfile(userCredential.user, { displayName: username });
+          
+          alert('สมัครสมาชิกสำเร็จ! ระบบจะนำคุณเข้าสู่ระบบโดยอัตโนมัติ');
+          // (onAuthStateChanged ใน init() จะดักจับแล้วพาไปหน้า Dashboard เอง)
+        } catch (error) {
+          if (error.code === 'auth/email-already-in-use') {
+            alert('อีเมลนี้ถูกใช้งานแล้ว กรุณาใช้อีเมลอื่น');
+          } else if (error.code === 'auth/weak-password') {
+            alert('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+          } else {
+            alert('เกิดข้อผิดพลาด: ' + error.message);
+          }
+        }
+      },
+
+      async login(e) {
+        e.preventDefault();
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+
+        try {
+          // ล็อกอินผ่าน Firebase
+          await signInWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+          alert('อีเมลหรือรหัสผ่านไม่ถูกต้อง!');
+        }
+      },
+
+      async logout() {
+        if(confirm('คุณต้องการออกจากระบบใช่หรือไม่?')){
+          try {
+            await signOut(auth);
+            // เมื่อ SignOut สำเร็จ onAuthStateChanged จะพาไปหน้า Home
+          } catch (error) {
+            console.error('Logout error:', error);
+          }
+        }
+      },
+
+      initDashboard() {
+        const budgetInput = document.getElementById('input-budget');
+        budgetInput.value = this.state.budget || '';
+        
+        budgetInput.addEventListener('input', (e) => {
+          this.state.budget = parseFloat(e.target.value) || 0;
+          this.updateDashboardUI();
+          this.saveData();
+        });
+
+        ['needs', 'wants', 'savings'].forEach(key => {
+          const input = document.getElementById(`c-${key}`);
+          input.value = this.state.customFormula[key];
+          input.addEventListener('input', (e) => {
+            this.state.customFormula[key] = parseFloat(e.target.value) || 0;
+            this.updateDashboardUI();
+            this.saveData();
+          });
+        });
+
+        this.setFormula(this.state.formulaType);
+      },
+
+      setFormula(type) {
+        this.state.formulaType = type;
+        
+        document.querySelectorAll('.f-btn').forEach(btn => {
+          btn.className = "f-btn py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 bg-white hover:border-blue-300 hover:text-blue-600 transition-all";
+        });
+        
+        let activeId = type === '50/30/20' ? 'btn-f-503020' : (type === '80/20' ? 'btn-f-8020' : 'btn-f-custom');
+        const activeBtn = document.getElementById(activeId);
+        if(activeBtn) {
+           activeBtn.className = "f-btn py-2.5 rounded-xl border border-blue-500 text-sm font-bold text-blue-700 bg-blue-50 shadow-sm transition-all";
+        }
+        
+        const customBox = document.getElementById('custom-formula-box');
+        if(customBox) customBox.classList.toggle('hidden', type !== 'custom');
+        
+        this.updateDashboardUI();
+        this.saveData();
+      },
+
+      addExpense(e) {
+        e.preventDefault();
+        const name = document.getElementById('exp-name').value.trim();
+        const amount = parseFloat(document.getElementById('exp-amount').value);
+        const category = document.getElementById('exp-category').value;
+        
+        if (name && amount > 0) {
+          this.state.expenses.unshift({ id: Date.now(), name, amount, category });
+          document.getElementById('exp-name').value = '';
+          document.getElementById('exp-amount').value = '';
+          this.updateDashboardUI();
+          this.saveData();
+        }
+      },
+
+      deleteExpense(id) {
+        this.state.expenses = this.state.expenses.filter(exp => exp.id !== id);
+        this.updateDashboardUI();
+        this.saveData();
+      },
+
+      getFormulaConfig() {
+        if (this.state.formulaType === '50/30/20') return { needs: 50, wants: 30, savings: 20 };
+        if (this.state.formulaType === '80/20') return { needs: 80, wants: 0, savings: 20 };
+        return this.state.customFormula;
+      },
+
+      updateDashboardUI() {
+        const f = this.getFormulaConfig();
+        const sumPercent = f.needs + f.wants + f.savings;
+        
+        const sumText = document.getElementById('custom-sum-text');
+        if(sumText) {
+          sumText.innerText = `รวม: ${sumPercent}%`;
+          sumText.className = sumPercent === 100 ? "text-sm font-bold text-emerald-600" : "text-sm font-bold text-rose-500";
+        }
+
+        const totalExp = this.state.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const remain = this.state.budget - totalExp;
+
+        document.getElementById('dash-budget').innerText = this.state.budget.toLocaleString();
+        document.getElementById('dash-expense').innerText = totalExp.toLocaleString() + ' ฿';
+        document.getElementById('dash-remain').innerText = remain.toLocaleString() + ' ฿';
+        document.getElementById('dash-remain').className = remain >= 0 ? "font-bold text-emerald-400 text-xl" : "font-bold text-rose-400 text-xl";
+
+        let breakdownHtml = '';
+        const renderBar = (label, pct, colorHex) => {
+          if (pct <= 0) return '';
+          const val = (this.state.budget * pct) / 100;
+          return `
+            <div>
+              <div class="flex justify-between text-xs mb-1.5 font-medium">
+                <span class="text-slate-300">${label} (${pct}%)</span>
+                <span>${val.toLocaleString()} ฿</span>
+              </div>
+              <div class="w-full bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
+                <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${colorHex}"></div>
+              </div>
+            </div>`;
+        };
+        
+        breakdownHtml += renderBar('จำเป็น', f.needs, '#3b82f6');
+        breakdownHtml += renderBar('ต้องการ', f.wants, '#a855f7');
+        breakdownHtml += renderBar('เงินออม', f.savings, '#10b981');
+        document.getElementById('dash-breakdown').innerHTML = breakdownHtml;
+
+        document.getElementById('exp-count').innerText = this.state.expenses.length;
+        const listHtml = this.state.expenses.length === 0 
+          ? '<div class="text-center text-slate-400 py-10 text-sm">ยังไม่มีรายการค่าใช้จ่าย</div>' 
+          : this.state.expenses.map(exp => `
+            <div class="exp-item flex justify-between items-center p-3 sm:p-4 hover:bg-slate-50 rounded-2xl border border-transparent hover:border-slate-100 transition-colors group">
+              <div class="flex items-center">
+                <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-lg mr-3 shadow-sm border border-slate-200/60">${getCategoryEmoji(exp.category)}</div>
+                <div class="flex flex-col">
+                  <span class="font-semibold text-slate-800 text-sm">${exp.name}</span>
+                  <span class="text-xs text-slate-500">${exp.category}</span>
+                </div>
+              </div>
+              <div class="flex items-center space-x-3">
+                <span class="font-bold text-slate-700 text-sm">-${exp.amount.toLocaleString()} ฿</span>
+                <button onclick="app.deleteExpense(${exp.id})" class="delete-btn text-slate-400 hover:text-rose-500 bg-white shadow-sm p-1.5 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+              </div>
+            </div>`).join('');
+        
+        document.getElementById('exp-list').innerHTML = listHtml;
+        lucide.createIcons();
+      },
+
+      saveSessionToHistory() {
+        if (this.state.budget <= 0) return alert('กรุณาระบุยอดเงินงบประมาณให้ถูกต้องก่อนบันทึก');
+        if (this.state.formulaType === 'custom') {
+          const f = this.state.customFormula;
+          if (f.needs + f.wants + f.savings !== 100) return alert('ผลรวมเปอร์เซ็นต์กำหนดเองต้องเท่ากับ 100% พอดี');
+        }
+
+        const totalExp = this.state.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        this.state.history.unshift({
+          id: Date.now(),
+          date: new Date().toLocaleString('th-TH'),
+          budget: this.state.budget,
+          expenses: totalExp,
+          remain: this.state.budget - totalExp,
+          allExpensesDetail: [...this.state.expenses]
+        });
+
+        this.state.budget = 0;
+        this.state.expenses = [];
+        this.saveData();
+        
+        alert('บันทึกข้อมูลเรียบร้อยแล้ว คุณสามารถดูประวัติได้ที่หน้า "สรุปรายการ"');
+        this.updateDashboardUI();
+        document.getElementById('input-budget').value = '';
+      },
+
+      initSummary() {
+        const tbody = document.getElementById('history-table');
+        if (this.state.history.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-slate-400">ยังไม่มีประวัติการบันทึกข้อมูล</td></tr>';
+        } else {
+          tbody.innerHTML = this.state.history.map(h => `
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="px-6 py-4 text-slate-500 text-sm">${h.date}</td>
+              <td class="px-6 py-4 font-semibold text-slate-700">${h.budget.toLocaleString()} ฿</td>
+              <td class="px-6 py-4 text-rose-500 font-medium">-${h.expenses.toLocaleString()} ฿</td>
+              <td class="px-6 py-4 font-bold ${h.remain >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${h.remain.toLocaleString()} ฿</td>
+              <td class="px-6 py-4">
+                <span class="px-3 py-1 rounded-full text-xs font-semibold ${h.remain >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                  ${h.remain >= 0 ? 'อยู่ในงบ' : 'เกินงบ'}
+                </span>
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        const allExpenses = [...this.state.expenses];
+        this.state.history.forEach(h => { if(h.allExpensesDetail) allExpenses.push(...h.allExpensesDetail) });
+        
+        const catTotals = allExpenses.reduce((acc, curr) => {
+          acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
+          return acc;
+        }, {});
+
+        const chartColors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#64748b'];
+
+        if(this.charts.pie) this.charts.pie.destroy();
+        const pieCtx = document.getElementById('chart-pie').getContext('2d');
+        if(Object.keys(catTotals).length === 0) {
+          this.charts.pie = new Chart(pieCtx, { type: 'doughnut', data: { labels: ['ไม่มีข้อมูล'], datasets: [{ data: [1], backgroundColor: ['#f1f5f9'], borderWidth: 0 }] }, options: { maintainAspectRatio: false, plugins: { tooltip: { enabled: false } }, cutout: '75%' } });
+        } else {
+          this.charts.pie = new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+              labels: Object.keys(catTotals),
+              datasets: [{
+                data: Object.values(catTotals),
+                backgroundColor: chartColors,
+                borderWidth: 0,
+                hoverOffset: 4
+              }]
+            },
+            options: { 
+              responsive: true, 
+              maintainAspectRatio: false, 
+              cutout: '75%',
+              plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, font: { family: "'Prompt', sans-serif" } } } }
+            }
+          });
+        }
+
+        if(this.charts.bar) this.charts.bar.destroy();
+        const barCtx = document.getElementById('chart-bar').getContext('2d');
+        const recent = [...this.state.history].slice(0, 5).reverse();
+        
+        Chart.defaults.font.family = "'Prompt', sans-serif";
+        this.charts.bar = new Chart(barCtx, {
+          type: 'bar',
+          data: {
+            labels: recent.length > 0 ? recent.map(h => h.date.split(' ')[0]) : ['ยังไม่มีข้อมูล'],
+            datasets: [
+              { label: 'งบที่ตั้งไว้', data: recent.map(h => h.budget), backgroundColor: '#cbd5e1', borderRadius: 6, barPercentage: 0.6 },
+              { label: 'ใช้ไปจริง', data: recent.map(h => h.expenses), backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: 0.6 }
+            ]
+          },
+          options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            scales: { x: { grid: { display: false } }, y: { border: { dash: [4, 4] }, grid: { color: '#f1f5f9' } } },
+            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }
+          }
+        });
+      },
+
+      clearHistory() {
+        if(this.state.history.length === 0) return alert('ไม่มีประวัติให้ลบ');
+        if(confirm('คุณแน่ใจหรือไม่ว่าจะลบประวัติและกราฟทั้งหมดทิ้ง? (ไม่สามารถกู้คืนได้)')) {
+          this.state.history = [];
+          this.saveData();
+          this.initSummary();
+        }
+      }
+    };
+
+    function getCategoryEmoji(category) {
+      if(category.includes('อาหาร')) return '🍔';
+      if(category.includes('เดินทาง')) return '🚗';
+      if(category.includes('ที่พัก')) return '🏠';
+      if(category.includes('ช้อปปิ้ง')) return '🛍️';
+      if(category.includes('บันเทิง')) return '🎬';
+      return '📦';
+    }
+
+    // ผูก app เข้ากับ window เพื่อให้ HTML ฝั่ง template มองเห็น
+    window.app = app;
+    window.onload = () => app.init();
+  </script>
+</body>
+</html>
